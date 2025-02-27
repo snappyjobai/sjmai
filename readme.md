@@ -1,4 +1,4 @@
-# SJM.AI - Smart Job Matching API
+# SJM.AI - Snappy Job Meddler
 
 SJM.AI is a comprehensive API platform for resume parsing, skills matching, and AI-powered freelancer interviews. It helps you find the perfect talent match for your projects using advanced natural language processing and machine learning techniques.
 

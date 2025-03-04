@@ -1,4 +1,4 @@
-# SJM.AI - Snap Jobs Module API
+# SJM.AI - Snap Job Model
 
 SJM.AI is a comprehensive API platform for resume parsing, skills matching, and AI-powered freelancer interviews. It helps you find the perfect talent match for your projects using advanced natural language processing and machine learning techniques.
 

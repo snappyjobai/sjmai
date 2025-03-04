@@ -1,4 +1,4 @@
-# SJM.AI - Smart Job Matching API
+# SJM.AI - Snap Jobs Module API
 
 SJM.AI is a comprehensive API platform for resume parsing, skills matching, and AI-powered freelancer interviews. It helps you find the perfect talent match for your projects using advanced natural language processing and machine learning techniques.
 
@@ -13,32 +13,9 @@ SJM.AI is a comprehensive API platform for resume parsing, skills matching, and 
 ## Tech Stack
 
 - **Backend**: FastAPI
-- **Database**: MySQL
 - **AI Services**: Claude (Anthropic) and OpenAI
 - **Data Processing**: NLTK, scikit-learn, pandas
 - **Caching**: Redis (production) / SQLite (development)
-
-## File Structure
-
-```
-sjm_package/
-├── api/
-│   ├── __init__.py
-│   ├── app.py          # FastAPI application and endpoints
-│   ├── auth.py         # API key authentication
-│   └── rate_limit.py   # Rate limiting functionality
-├── core/
-│   ├── __init__.py
-│   ├── ai_interviewer.py    # AI interview functionality
-│   ├── data_generator.py    # Test data generation
-│   ├── data_source.py       # Data source abstraction
-│   └── sjm.py               # Core matching functionality
-├── db/
-│   ├── __init__.py
-│   └── db.py                # Database connection management
-└── utils/
-    └── config.py            # Configuration utilities
-```
 
 ## Installation
 
@@ -50,7 +27,7 @@ sjm_package/
 - Nginx (for production deployment)
 - Claude and OpenAI API keys
 
-### Local Development Setup
+<!-- ### Local Development Setup
 
 1. Clone the repository:
    ```bash
@@ -165,7 +142,7 @@ sjm_package/
    ```bash
    sudo nano /etc/nginx/conf.d/sjm-api.conf
    ```
-   
+
    Add:
    ```nginx
    server {
@@ -193,7 +170,7 @@ sjm_package/
 8. (Optional) Set up SSL:
    ```bash
    sudo certbot --nginx -d your-domain.com
-   ```
+   ``` -->
 
 ## API Documentation
 
@@ -219,6 +196,7 @@ All API endpoints require an API key passed via the `X-API-Key` header. API keys
 ## Rate Limiting
 
 Rate limits are enforced based on the API key plan type:
+
 - Freelancer: Lower request limits
 - Professional: Medium request limits
 - Enterprise: Unlimited requests
@@ -226,6 +204,7 @@ Rate limits are enforced based on the API key plan type:
 ## Database Schema
 
 The system requires the following MySQL tables:
+
 - `users`: User information
 - `api_keys`: API key storage (encrypted)
 - `api_key_requests`: Usage tracking
@@ -237,6 +216,7 @@ The system requires the following MySQL tables:
 ### Data Sources
 
 The system supports multiple data sources:
+
 - **Database**: Connect to a MySQL database with freelancer profiles
 - **CSV**: Load data from a CSV file
 - **Test**: Generate test data on the fly

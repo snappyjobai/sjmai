@@ -6,18 +6,18 @@ import logging
 import PyPDF2
 import docx
 import io
-import json 
+import json
 from datetime import datetime, timedelta
 from enum import Enum
 
 from .auth import get_api_key
 from .rate_limit import rate_limiter
 from ..core.sjm import (
-    SkillsExtract, 
-    Project, 
-    Freelancer, 
-    MatchingEngine, 
-    normalize_csv, 
+    SkillsExtract,
+    Project,
+    Freelancer,
+    MatchingEngine,
+    normalize_csv,
     DataSourceConfig
 )
 
@@ -26,21 +26,16 @@ from ..core.ai_interviewer import AIInterviewer
 from ..core.data_generator import TestDataGenerator
 from ..db.db import connection_pool
 
+from .test_api import router as test_router
+
 # Configure logging
 logger = logging.getLogger(__name__)
-logging.basicConfig(
-    level=logging.DEBUG,  # or INFO, depending on how verbose you want the logs
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("core_test/app.log"),
-        logging.StreamHandler()
-    ]
-)
 
 app = FastAPI(
     title="SJM.AI API",
     description="API for resume parsing, skills matching, and AI interviews",
-    version="1.0.0"
+    version="1.0.0",
+    root_path="/api/v1"
 )
 
 # Initialize core components
@@ -95,10 +90,10 @@ class SkillVerificationRequest(BaseModel):
 def init_matching_engine(data_source_config: Optional[DataSourceConfig] = None) -> MatchingEngine:
     # Create data source
     data_source = FreelancerDataSource(data_source_config)
-    
+
     # Load freelancers
     freelancers = data_source.load_data()
-    
+
     # Initialize matching engine with loaded freelancers
     return MatchingEngine(
         freelancers=freelancers,
@@ -118,7 +113,7 @@ async def configure_data_source(
         # Reinitialize matching engine with new configuration
         global matching_engine
         matching_engine = init_matching_engine(config)
-        
+
         return {
             "status": "success",
             "message": f"Data source configured to {config.type}",
@@ -156,27 +151,27 @@ async def add_rate_limit(request: Request, call_next):
     # Exclude documentation routes
     if request.url.path in ["/docs", "/openapi.json"]:
         return await call_next(request)
-    
+
     try:
         # Get the API key from the request headers
         api_key = request.headers.get("X-API-Key")
-        
+
         # Authenticate the API key first
         api_key_data = await get_api_key(api_key)
-        
+
         try:
             # Prepare response
             response = await call_next(request)
-            
+
             # Deduct request only if response is successful (status code 2xx)
             request_successful = 200 <= response.status_code < 300
-            
+
             # Deduct request and get usage stats
             request_usage = await rate_limiter.deduct_request(
-                api_key_data, 
+                api_key_data,
                 request_successful
             )
-            
+
             # Add rate limit headers if request was successful
             if request_usage:
                 # Handle unlimited case
@@ -187,17 +182,17 @@ async def add_rate_limit(request: Request, call_next):
                 else:
                     response.headers["X-RateLimit-Limit"] = str(request_usage.get('limit', 100))
                     response.headers["X-RateLimit-Remaining"] = str(request_usage.get('remaining', 0))
-                    
+
                     # Calculate time until next month reset
                     now = datetime.now()
                     next_month = now.replace(day=1) + timedelta(days=32)  # Go to next month
                     next_month = next_month.replace(day=1)  # Reset to first day of next month
                     time_until_reset = next_month - now
-                    
+
                     response.headers["X-RateLimit-Reset"] = str(int(time_until_reset.total_seconds()))
-            
+
             return response
-        
+
         except HTTPException as rate_limit_error:
             # Handle rate limit exceeded
             return JSONResponse(
@@ -207,7 +202,7 @@ async def add_rate_limit(request: Request, call_next):
                     "detail": rate_limit_error.detail
                 }
             )
-    
+
     except HTTPException as auth_error:
         # Handle authentication errors
         return JSONResponse(
@@ -216,8 +211,14 @@ async def add_rate_limit(request: Request, call_next):
                 "error": "Authentication failed",
                 "detail": auth_error.detail
             }
-        )   
+        )
 # API Endpoints
+
+# Test
+app.include_router(test_router)
+
+
+# Full
 @app.post("/parse")
 async def parse_resume(
     file: UploadFile = File(...),
@@ -225,10 +226,10 @@ async def parse_resume(
 ):
     try:
         content = await file.read()
-        
+
         if len(content) > 10 * 1024 * 1024:  # 10MB limit
             raise HTTPException(status_code=400, detail="File too large (max 10MB)")
-            
+
         filename = file.filename.lower()
         if filename.endswith('.pdf'):
             text = extract_pdf_text(content)
@@ -264,7 +265,7 @@ async def match_freelancers(
     try:
         # Ensure matching engine is up to date
         matching_engine.train_models()
-        
+
         project_obj = Project(
             id="temp_id",
             description=project.description,
@@ -273,9 +274,9 @@ async def match_freelancers(
             complexity=project.complexity,
             timeline=project.timeline
         )
-        
+
         matches = matching_engine.get_top_matches(project_obj)
-        
+
         return {
             "status": "success",
             "matches": [
@@ -326,31 +327,31 @@ async def conduct_interview(
             if f.id == interview_req.freelancer_id:
                 freelancer = f
                 break
-        
+
         if not freelancer:
             raise HTTPException(status_code=404, detail="Freelancer not found")
-        
+
         # Log freelancer details
         logger.info("Freelancer Details:")
         logger.info(f"Name: {freelancer.name}")
         logger.info(f"Job Title: {freelancer.job_title}")
         logger.info(f"Skills: {freelancer.skills}")
         logger.info(f"Experience: {freelancer.experience} years")
-        
+
         # Extract session ID if provided
         session_id = None
         provided_answers = None
-        
+
         # Check for session_id in the request data
         if hasattr(interview_req, 'session_id') and interview_req.session_id:
             session_id = interview_req.session_id
             logger.info(f"Using provided session ID: {session_id}")
-        
+
         # Check for answers in the request data
         if hasattr(interview_req, 'provided_answers') and interview_req.provided_answers:
             provided_answers = interview_req.provided_answers
             logger.info(f"Received {len(provided_answers)} answers for evaluation")
-        
+
         # Prepare interview configuration
         interview_config = {
             "mode": interview_req.mode,
@@ -368,7 +369,7 @@ async def conduct_interview(
                 "job_title": interview_req.job_title
             }
         }
-        
+
         # Log full configuration for debugging
         logger.info("Full Interview Configuration:")
         logger.info(json.dumps(interview_config, indent=2))
@@ -377,7 +378,7 @@ async def conduct_interview(
         if interview_req.mode == InterviewMode.CUSTOM_FULL:
             if not interview_req.custom_questions:
                 raise HTTPException(
-                    status_code=400, 
+                    status_code=400,
                     detail="Custom questions required for CUSTOM_FULL mode"
                 )
             interview_config["questions"] = [q.dict() for q in interview_req.custom_questions]
@@ -389,21 +390,21 @@ async def conduct_interview(
 
         # Conduct interview using AI Interviewer
         result = await matching_engine.conduct_interview(
-            interview_config, 
+            interview_config,
             session_id=session_id,
             provided_answers=provided_answers
         )
-        
+
         # Log detailed result info
         logger.info("Interview Conduct Result:")
         logger.info(f"Success: {result.get('success', False)}")
-        
+
         interview_data = result.get("interview_data", {})
         evaluation = result.get("evaluation", {})
-        
+
         logger.info(f"Interview Data Keys: {interview_data.keys() if interview_data else 'None'}")
         logger.info(f"Evaluation Keys: {evaluation.keys() if evaluation else 'None'}")
-        
+
         # Format detailed info for logging
         detailed_data = {
             "interview_data": {
@@ -415,13 +416,13 @@ async def conduct_interview(
                 "hiring_recommendation": evaluation.get("hiring_recommendation") if evaluation else None
             }
         }
-        
+
         logger.info("Detailed Interview Data:")
         logger.info(json.dumps(detailed_data, indent=2))
-        
+
         if not result["success"]:
             raise HTTPException(
-                status_code=500, 
+                status_code=500,
                 detail=result.get("error", "Interview failed")
             )
 
@@ -438,16 +439,16 @@ async def conduct_interview(
                 "session_id": result.get("session_id", session_id)
             }
         }
-        
+
         # Include interview data if available
         if interview_data:
             response_data["data"]["interview_data"] = interview_data
-        
+
         # Include evaluation if available - make sure it's a valid dictionary
         if evaluation and isinstance(evaluation, dict):
             # Ensure all fields in evaluation are JSON serializable
             cleaned_evaluation = {}
-            
+
             for key, value in evaluation.items():
                 # Handle potential non-serializable values
                 if isinstance(value, (str, int, float, bool, type(None))):
@@ -461,11 +462,11 @@ async def conduct_interview(
                 else:
                     # Convert other types to string
                     cleaned_evaluation[key] = str(value)
-            
+
             response_data["data"]["evaluation"] = cleaned_evaluation
 
         return response_data
-        
+
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -512,7 +513,7 @@ async def health_check():
         try:
             # Get current data source configuration
             current_config = matching_engine.data_source.config if hasattr(matching_engine, 'data_source') else None
-            
+
             if current_config:
                 health_response["components"]["data_source"] = {
                     "status": "healthy",
@@ -577,7 +578,7 @@ async def health_check():
         if unhealthy_components:
             health_response["status"] = "unhealthy"
             health_response["unhealthy_components"] = unhealthy_components
-        
+
         return health_response
 
     except Exception as e:
@@ -595,14 +596,14 @@ def initialize_test_data():
         # Generate test data
         test_file_path = test_data_generator.save_test_data()
         logger.info(f"Test data generated at: {test_file_path}")
-        
+
         # Initialize matching engine with the generated test data
         global matching_engine
         matching_engine = init_matching_engine(
             DataSourceConfig(type="csv", path=test_file_path)
         )
         logger.info(f"Matching engine initialized with {len(matching_engine.freelancers)} freelancers")
-        
+
         global ai_interviewer
         ai_interviewer = AIInterviewer()
     except Exception as e:
